@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "@google-cloud/speech": "^7.0.1",
+    "cli-flag-parser": "^1.1.1",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "twilio": "^5.6.1",
+    "wav": "^1.0.2",
+    "websocket": "^1.0.35"
+  }
+}
