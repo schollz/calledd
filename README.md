@@ -1,12 +1,11 @@
 # Call EDD
 
-This repository is a simple script that uses Twilio and Google's Speech-to-Text to automatically
-call the EDD (Employment Development Department) in California and get through to talk to a human.
-This usually works for me to get in touch with a human representative within about 30 minutes (previously
-I had spent two weeks trying to get through). 
+This repository is a simple script that uses Twilio and Google's Speech-to-Text that can be used
+to call EDD (Employment Development Department) in California and get through to talk to a human.
+Usually works to get a human representative within about 30.
 
 It costs about $1.50 to get the Twilio number and usually about $1-$5 to get through to a human, depending on how long you are on hold.
-I automated this in a website, [calledd.com](https://calledd.com) where you can pay $15 to do all this automatically, but I wanted to make the code available for anyone who wants to use it.
+I automated this in a website, [calledd.com](https://calledd.com) where you can pay $15 to do all this automatically.
 
 
 The script will call the EDD, wait for the automated system to ask for verification code, dial in the code,
@@ -49,7 +48,7 @@ ngrok http 3000
 Copy the generated HTTPS URL from the "Forwarding" section (e.g.,
 `1234abcd.ngrok.io`) and set it as the `HOST` value in your `.env` file.
 
-### Get Twilio Credentials
+### Get Twilio Credentials + Phone Number
 
 Log in to your [Twilio Console](https://www.twilio.com/console). Copy your
 **Account SID** and **Auth Token** from the "Account Info" section. Then,
