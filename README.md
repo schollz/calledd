@@ -74,6 +74,13 @@ After setting up the environment, install the required dependencies:
 npm install
 ```
 
+
+Make sure ngrok is running and the tunnel is active:
+
+```bash
+ngrok http 3000
+```
+
 Then, run the script:
 
 ```bash
