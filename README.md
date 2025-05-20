@@ -24,7 +24,7 @@ TO_PHONE_NUMBER=18772384373
 REDIRECT_PHONE_NUMBER=
 ```
 
-### 1. Install and Configure ngrok
+### Install and Configure ngrok
 
 Visit [https://ngrok.com](https://ngrok.com), sign up for a free account, and
 download the ngrok binary for your system. In your terminal, run:
@@ -42,7 +42,7 @@ ngrok http 3000
 Copy the generated HTTPS URL from the "Forwarding" section (e.g.,
 `1234abcd.ngrok.io`) and set it as the `HOST` value in your `.env` file.
 
-### 2. Get Twilio Credentials
+### Get Twilio Credentials
 
 Log in to your [Twilio Console](https://www.twilio.com/console). Copy your
 **Account SID** and **Auth Token** from the "Account Info" section. Then,
@@ -50,7 +50,7 @@ purchase a Twilio phone number that supports SMS and voice from the "Phone
 Numbers" section. Paste these into your `.env` as `TWILIO_ACCOUNT_SID`,
 `TWILIO_AUTH_TOKEN`, and `TWILIO_PHONE_NUMBER`.
 
-### 3. Set Up Google Speech-to-Text
+### Set Up Google Speech-to-Text
 
 Go to the [Google Cloud Console](https://console.cloud.google.com/), create or
 select a project, and enable the **Speech-to-Text API**. Then navigate to **IAM
@@ -59,7 +59,7 @@ choose **Add Key > Create new key > JSON**. This will download a JSON
 file—rename it to `speech-transcription.json` and set the
 `GOOGLE_APPLICATION_CREDENTIALS` path accordingly.
 
-### 4. Set Redirect Number
+### Set Redirect Number
 
 Set `REDIRECT_PHONE_NUMBER` in your `.env` to the personal number you want
 Twilio to redirect calls to.
