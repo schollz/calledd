@@ -10,10 +10,13 @@ I automated this in a website, [calledd.com](https://calledd.com) where you can 
 
 
 The script will call the EDD, wait for the automated system to ask for verification code, dial in the code,
-and then wait for the system to transfer the call, and if so, it will redirect the call to your personal numbe.r
+and then wait for the system to transfer the call, and if so, it will redirect the call to your personal number.
 
 
 ## Pre-requisites
+
+
+### Setup `.env` file
 
 Create a `.env` file which has the following variables:
 
