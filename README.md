@@ -2,7 +2,7 @@
 
 This repository contains a simple script that leverages Twilio and Google's Speech-to-Text to place calls to the California Employment Development Department (EDD) with the goal of reaching a human representative. In many cases, it may help connect you to a live person within approximately 30 minutes.
 
-Using Twilio typically costs around $1.50 for the phone number, and the call itself may range from $1 to $5 depending on hold time. I’ve also automated this process on a website, [calledd.com](https://calledd.com), where for $15 you can have the entire sequence run automatically.
+Using Twilio typically costs around $1.50 for the phone number, and the call itself may range from $1 to $5 depending on hold time. I’ve also automated this process on a website, [calledd.com](https://calledd.com), where for $15 you can leverage this process without the hassle of setting it up yourself. The website is currently in beta, and I plan to add more features in the future.
 
 The script initiates a call to the EDD, waits for the automated system to request a verification code, inputs the code, and then waits to be transferred. If the system redirects the call, it will forward it to your personal number.
 
