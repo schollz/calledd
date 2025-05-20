@@ -5,6 +5,10 @@ call the EDD (Employment Development Department) in California and get through t
 This usually works for me to get in touch with a human representative within about 30 minutes (previously
 I had spent two weeks trying to get through). 
 
+It costs about $1.50 to get the Twilio number and usually about $1-$5 to get through to a human, depending on how long you are on hold.
+I automated this in a website, [calledd.com](https://calledd.com) where you can pay $15 to do all this automatically, but I wanted to make the code available for anyone who wants to use it.
+
+
 The script will call the EDD, wait for the automated system to ask for verification code, dial in the code,
 and then wait for the system to transfer the call, and if so, it will redirect the call to your personal numbe.r
 
