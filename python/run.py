@@ -146,7 +146,7 @@ def process_speech():
     call_sid = request.values.get('CallSid', '')
     confidence = request.values.get('Confidence', 'N/A')
 
-    logger.info(f"Speech transcribed: '{speech_result}' (confidence: {confidence})")
+    logger.info(f"\033[33m{speech_result}\033[0m (confidence: {confidence})")
     logger.debug(f"Current state: {state_machine.state.name}")
 
     response = VoiceResponse()
