@@ -22,12 +22,9 @@ TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER')
 TARGET_PHONE_NUMBER = os.environ.get('TARGET_PHONE_NUMBER')
 TRANSFER_NUMBER = os.environ.get('TRANSFER_NUMBER')
 
-SPEECH_TIMEOUT = int(os.environ.get('SPEECH_TIMEOUT', '10'))
-SPEECH_TIMEOUT_AUTO = os.environ.get('SPEECH_TIMEOUT_AUTO', 'auto')
-SPEECH_MODEL = os.environ.get('SPEECH_MODEL', 'default')
+SPEECH_TIMEOUT = int(os.environ.get('SPEECH_TIMEOUT', '3'))
 SPEECH_LANGUAGE = os.environ.get('SPEECH_LANGUAGE', 'en-US')
-SPEECH_PROFANITY_FILTER = os.environ.get('SPEECH_PROFANITY_FILTER', 'true')
-SPEECH_HINTS = os.environ.get('SPEECH_HINTS', 'code,0,1,2,3,4,5,6,7,8,9,verification,please,call,again')
+SPEECH_PROFANITY_FILTER = os.environ.get('SPEECH_PROFANITY_FILTER', 'false')
 BANANA_TIMEOUT = int(os.environ.get('BANANA_TIMEOUT', '120'))
 REDIAL_PHRASES = ['goodbye','please call again']
 
@@ -67,6 +64,24 @@ class CallState(Enum):
     WAITING_FOR_PHONE_TREE = 2
     WAITING_FOR_BANANA = 3
     COMPLETE = 4
+
+GATHER_CONFIGS = {
+    CallState.WAITING_FOR_VERIFICATION_CODE: {
+        'speechModel': 'numbers_and_commands',
+        'hints': '0,1,2,3,4,5,6,7,8,9,code,verification',
+        'timeout': 2,
+    },
+    CallState.WAITING_FOR_PHONE_TREE: {
+        'speechModel': 'experimental_utterances',
+        'hints': 'press,enter,option,menu,edd',
+        'timeout': 2,
+    },
+    CallState.WAITING_FOR_BANANA: {
+        'speechModel': 'experimental_utterances',
+        'hints': 'banana,transfer,representative,agent',
+        'timeout': 2,
+    },
+}
 
 def format_digits_with_pauses(digits, pause_seconds):
     digits = digits.replace(' ', '')
@@ -122,20 +137,23 @@ state_machine = StateMachine()
 
 @app.route("/voice", methods=['GET', 'POST'])
 def voice():
-    logger.debug("Voice endpoint hit - setting up speech gather")
+    current_state = state_machine.state
+    config = GATHER_CONFIGS.get(current_state, GATHER_CONFIGS[CallState.WAITING_FOR_VERIFICATION_CODE])
+
+    logger.debug(f"Voice endpoint hit - state: {current_state.name}, model: {config['speechModel']}")
+
     response = VoiceResponse()
     gather = Gather(
         input='speech',
         action='/process_speech',
-        timeout=SPEECH_TIMEOUT,
-        speechTimeout=SPEECH_TIMEOUT_AUTO,
-        speechModel=SPEECH_MODEL,
+        timeout=config['timeout'],
+        speechTimeout='auto',
+        speechModel=config['speechModel'],
         language=SPEECH_LANGUAGE,
         profanityFilter=SPEECH_PROFANITY_FILTER,
-        hints=SPEECH_HINTS
+        hints=config['hints']
     )
     response.append(gather)
-    # response.redirect('/voice')
     return Response(str(response), mimetype='text/xml')
 
 @app.route("/process_speech", methods=['POST'])
@@ -225,12 +243,12 @@ if __name__ == "__main__":
     logger.info("="*60)
     logger.info("Starting Twilio Speech-to-Text Call Automation")
     logger.info("="*60)
-    logger.info(f"Speech timeout: {SPEECH_TIMEOUT}s")
-    logger.info(f"Speech model: {SPEECH_MODEL}")
     logger.info(f"Speech language: {SPEECH_LANGUAGE}")
-    logger.info(f"Speech hints: {SPEECH_HINTS}")
     logger.info(f"Banana timeout: {BANANA_TIMEOUT}s")
     logger.info(f"Server port: {state_machine.port}")
+    logger.info("Dynamic speech models per state:")
+    for state, config in GATHER_CONFIGS.items():
+        logger.info(f"  {state.name}: {config['speechModel']} (timeout={config['timeout']}s)")
     logger.info("="*60)
 
     threading.Thread(target=lambda: app.run(port=state_machine.port, debug=False)).start()
