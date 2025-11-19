@@ -29,7 +29,7 @@ SPEECH_LANGUAGE = os.environ.get('SPEECH_LANGUAGE', 'en-US')
 SPEECH_PROFANITY_FILTER = os.environ.get('SPEECH_PROFANITY_FILTER', 'true')
 SPEECH_HINTS = os.environ.get('SPEECH_HINTS', 'code,0,1,2,3,4,5,6,7,8,9,verification,please,call,again')
 BANANA_TIMEOUT = int(os.environ.get('BANANA_TIMEOUT', '120'))
-
+REDIAL_PHRASES = ['goodbye','please call again']
 
 client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
@@ -64,69 +64,33 @@ def get_free_port():
 
 class CallState(Enum):
     WAITING_FOR_VERIFICATION_CODE = 1
-    SENDING_FIRST_CODE = 2
-    WAITING_FOR_PHONE_TREE = 3
-    SENDING_PHONE_TREE = 4
-    WAITING_FOR_BANANA = 5
-    TRANSFERRING = 6
-    COMPLETE = 7
+    WAITING_FOR_PHONE_TREE = 2
+    WAITING_FOR_BANANA = 3
+    COMPLETE = 4
+
+def format_digits_with_pauses(digits, pause_seconds):
+    digits = digits.replace(' ', '')
+    pause_length = int(pause_seconds / 0.5)
+    digits_with_pauses = ('w' * pause_length).join(digits) + ('w' * pause_length)
+    logger.debug(f"Original digits: {digits}, with pauses: {digits_with_pauses}")
+    return digits_with_pauses
 
 class StateMachine:
     def __init__(self):
         self.state = CallState.WAITING_FOR_VERIFICATION_CODE
-        self.codes = []
         self.current_call_sid = None
         self.public_url = None
         self.banana_timeout = None
         self.port = get_free_port()
-        
+
     def reset(self):
         logger.info("Resetting state machine")
         self.state = CallState.WAITING_FOR_VERIFICATION_CODE
-        self.codes = []
         self.current_call_sid = None
         if self.banana_timeout:
             self.banana_timeout.cancel()
             self.banana_timeout = None
-        
-    def process_code(self, code, call_sid):
-        logger.info(f"Current state: {self.state.name}, Received code: {code}")
-        
-        if self.state == CallState.WAITING_FOR_VERIFICATION_CODE:
-            self.current_call_sid = call_sid
-            self.state = CallState.SENDING_FIRST_CODE
-            logger.debug(f"Sending first verification code: {code}")
-            threading.Thread(target=self.send_digits, args=(call_sid, code, 1)).start()
-            
-    def process_banana(self, call_sid):
-        if self.state == CallState.WAITING_FOR_BANANA:
-            logger.info("Banana keyword detected - initiating transfer")
-            if self.banana_timeout:
-                self.banana_timeout.cancel()
-                self.banana_timeout = None
-            self.state = CallState.TRANSFERRING
-            threading.Thread(target=self.transfer_call, args=(call_sid,)).start()
-            
-    def send_digits(self, call_sid, code, pause_length=2):
-        time.sleep(1)
-        try:
-            twiml = f'<Response><Play digits="{code}"/><Pause length="{pause_length}"/><Redirect>{self.public_url}/voice</Redirect></Response>'
-            logger.debug(f"twiml to send: {twiml}")
-            client.calls(call_sid).update(twiml=twiml)
-            logger.info(f"Successfully sent code: {code}")
-            
-            if self.state == CallState.SENDING_FIRST_CODE:
-                self.state = CallState.WAITING_FOR_PHONE_TREE
-                logger.info("Waiting for phone tree prompt")
-            elif self.state == CallState.SENDING_PHONE_TREE:
-                self.state = CallState.WAITING_FOR_BANANA
-                logger.info("Waiting for banana keyword")
-                self.banana_timeout = threading.Timer(BANANA_TIMEOUT, self.banana_timeout_handler, args=(call_sid,))
-                self.banana_timeout.start()
-                
-        except Exception as e:
-            logger.error(f"Error sending digits: {e}")
-            
+
     def banana_timeout_handler(self, call_sid):
         logger.warning(f"Banana timeout after {BANANA_TIMEOUT} seconds - hanging up and retrying")
         try:
@@ -136,30 +100,21 @@ class StateMachine:
         time.sleep(2)
         self.reset()
         self.make_call()
-        
-    def transfer_call(self, call_sid):
-        try:
-            twiml = f'<Response><Dial>{TRANSFER_NUMBER}</Dial></Response>'
-            client.calls(call_sid).update(twiml=twiml)
-            logger.info(f"Call transferred to {TRANSFER_NUMBER}")
-            self.state = CallState.COMPLETE
-        except Exception as e:
-            logger.error(f"Error transferring call: {e}")
-            
+
     def make_call(self):
         if not self.public_url:
             logger.info(f"Starting ngrok tunnel on port {self.port}...")
             tunnel = ngrok.connect(self.port)
             self.public_url = tunnel.public_url
             logger.info(f"ngrok tunnel established: {self.public_url}")
-        
+
         logger.info(f"Initiating call to {TARGET_PHONE_NUMBER}")
         call = client.calls.create(
             to=TARGET_PHONE_NUMBER,
             from_=TWILIO_PHONE_NUMBER,
             url=f"{self.public_url}/voice"
         )
-        
+
         self.current_call_sid = call.sid
         logger.info(f"Call initiated with SID: {call.sid}")
 
@@ -180,7 +135,7 @@ def voice():
         hints=SPEECH_HINTS
     )
     response.append(gather)
-    response.redirect('/voice')
+    # response.redirect('/voice')
     return Response(str(response), mimetype='text/xml')
 
 @app.route("/process_speech", methods=['POST'])
@@ -190,68 +145,80 @@ def process_speech():
     speech_lower = ' '.join(speech_lower.split())
     call_sid = request.values.get('CallSid', '')
     confidence = request.values.get('Confidence', 'N/A')
-    
+
     logger.info(f"Speech transcribed: '{speech_result}' (confidence: {confidence})")
     logger.debug(f"Current state: {state_machine.state.name}")
 
+    response = VoiceResponse()
 
+    # State machine re-routing on keywords
     if 'verification code' in speech_lower and state_machine.state != CallState.WAITING_FOR_VERIFICATION_CODE:
-        # we are still in the process of getting codes
-        # because perhaps the first code wasn't entered correctly
         logger.info("Detected 'verification code' keyword - resetting to WAITING_FOR_VERIFICATION_CODE state")
         state_machine.state = CallState.WAITING_FOR_VERIFICATION_CODE
-    if 'please call again' in speech_lower:
-        logger.info("Detected 'please call again' keyword - resetting state machine and retrying call")
-        state_machine.reset()
-        state_machine.make_call()
-        response = VoiceResponse()
-        response.hangup()
-        return Response(str(response), mimetype='text/xml')
 
-    # if 'few words' in speech_lower:
-    #     # transfer call to the transfer number immediately
-    #     logger.info("Detected 'few words' keyword - transferring call immediately")
-    #     state_machine.state = CallState.TRANSFERRING
-    #     threading.Thread(target=state_machine.transfer_call, args=(call_sid,)).start()
-    #     # wait a moment to ensure the transfer starts
-    #     time.sleep(10)
-    #     response = VoiceResponse()
-    #     response.hangup()
-    #     return Response(str(response), mimetype='text/xml')
-    
-    if state_machine.state == CallState.WAITING_FOR_BANANA and 'banana' in speech_result.lower():
-        state_machine.process_banana(call_sid)
-    elif state_machine.state==CallState.WAITING_FOR_PHONE_TREE:
-        # Press through the phone tree with "3 1 0", very slowly
+    # State machine logic
+    if any(phrase in speech_lower for phrase in REDIAL_PHRASES):
+        logger.info(f"Detected redial phrase: {speech_lower} - resetting state machine and retrying call")
+        state_machine.reset()
+        threading.Thread(target=state_machine.make_call).start()
+        response.hangup()
+
+    elif state_machine.state == CallState.WAITING_FOR_BANANA and 'banana' in speech_result.lower():
+        logger.info("Banana keyword detected - initiating transfer")
+        if state_machine.banana_timeout:
+            state_machine.banana_timeout.cancel()
+            state_machine.banana_timeout = None
+        state_machine.state = CallState.COMPLETE
+        response.dial(TRANSFER_NUMBER)
+        logger.info(f"Call transferred to {TRANSFER_NUMBER}")
+
+    elif state_machine.state == CallState.WAITING_FOR_PHONE_TREE:
         digits = '3 1 0'
-        state_machine.state = CallState.SENDING_PHONE_TREE
-        threading.Thread(target=state_machine.send_digits, args=(call_sid, digits, 5)).start()
-    elif state_machine.state==CallState.WAITING_FOR_VERIFICATION_CODE:
+        logger.info(f"Phone tree prompt detected - sending digits: {digits}")
+        state_machine.state = CallState.WAITING_FOR_BANANA
+
+        response.pause(length=1)
+        response.play(digits=format_digits_with_pauses(digits, 5))
+        response.redirect('/voice')
+
+        logger.info("Waiting for banana keyword")
+        state_machine.banana_timeout = threading.Timer(BANANA_TIMEOUT, state_machine.banana_timeout_handler, args=(call_sid,))
+        state_machine.banana_timeout.start()
+
+    elif state_machine.state == CallState.WAITING_FOR_VERIFICATION_CODE:
         code = None
 
-        # Pattern: "verification code for 425"
         if 'code' in speech_lower:
-            # Extract all digits, they might be separated by spaces
-            # Convert "one" to "1", etc.
             speech_lower = speech_lower.replace('zero', '0').replace('one', '1').replace('two', '2')\
                 .replace('three', '3').replace('four', '4').replace('five', '5').replace('six', '6')\
                 .replace('seven', '7').replace('eight', '8').replace('nine', '9')
-            logger.debug(f"Converted speech for digit extraction: '{speech_lower}'")
+            # remove spaces
+            speech_lower = speech_lower.replace(' ', '')
+            # find longest contiguous digit sequence
             digit_sequences = re.findall(r'\d+', speech_lower)
+            logger.debug(f"Digit sequences found: {digit_sequences}")
             if digit_sequences:
-                code = ''.join(digit_sequences)
-
+                code = max(digit_sequences, key=len)
+            
         if code:
             code = ''.join(filter(str.isalnum, code))
-            state_machine.process_code(code, call_sid)
-    
-    response = VoiceResponse()
-    if state_machine.state in [CallState.COMPLETE, CallState.TRANSFERRING]:
-        logger.info("Call completing - hanging up")
-        response.hangup()
+            logger.info(f"Verification code detected: {code}")
+            state_machine.current_call_sid = call_sid
+            state_machine.state = CallState.WAITING_FOR_PHONE_TREE
+
+            response.pause(length=1)
+            response.play(digits=format_digits_with_pauses(code, 0.5))
+            response.redirect('/voice')
+            logger.info(f"Successfully sent code: {code}")            
+        else:
+            response.pause(length=2)
+            response.redirect('/voice')
     else:
-        response.pause(length=2)
+        # just continue gathering
+        logger.debug("No action taken - continuing to gather speech")
+        response.pause(length=1)
         response.redirect('/voice')
+
     return Response(str(response), mimetype='text/xml')
 
 if __name__ == "__main__":
@@ -275,5 +242,3 @@ if __name__ == "__main__":
     
     while True:
         time.sleep(1)
-
-    # 3 1 0
