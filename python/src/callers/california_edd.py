@@ -49,7 +49,7 @@ class CaliforniaEDDCaller(BaseCaller):
         self.speech_language = os.environ.get('SPEECH_LANGUAGE', 'en-US')
         self.speech_profanity_filter = os.environ.get('SPEECH_PROFANITY_FILTER', 'false')
         self.banana_timeout_seconds = int(os.environ.get('BANANA_TIMEOUT', '120'))
-        self.redial_phrases = ['goodbye', 'please call again']
+        self.redial_phrases = ['goodbye', 'please call again','unable to assist']
 
     def _register_routes(self):
         self.app.add_url_rule('/voice', 'voice', self.voice, methods=['GET', 'POST'])
@@ -154,6 +154,7 @@ class CaliforniaEDDCaller(BaseCaller):
                     .replace('three', '3').replace('four', '4').replace('five', '5').replace('six', '6')\
                     .replace('seven', '7').replace('eight', '8').replace('nine', '9')
                 speech_lower = speech_lower.replace(' ', '')
+                speech_lower = speech_lower.replace('-','')
                 digit_sequences = re.findall(r'\d+', speech_lower)
                 logger.debug(f"Digit sequences found: {digit_sequences}")
                 if digit_sequences:
